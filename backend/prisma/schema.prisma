@@ -1,7 +1,9 @@
 // Prisma Schema for Talking Wave SIP Call Center Auto-Dialer Platform (MySQL)
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  engineType    = "binary"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
 }
 
 datasource db {
