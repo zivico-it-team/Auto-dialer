@@ -1,0 +1,237 @@
+// Prisma Schema for Talking Wave SIP Call Center Auto-Dialer Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------
+// User and Identity
+// ----------------------------------------------------
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  phone        String?
+  passwordHash String
+  role         String        @default("AGENT") // ADMIN, SUPERVISOR, AGENT
+  status       String        @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  agentProfile   AgentProfile?
+  auditLogs      AuditLog[]
+  assignedCalls  Call[]       @relation("AgentCalls")
+  callbacks      Callback[]    @relation("AgentCallbacks")
+  assignedCampaigns Campaign[] @relation("AgentCampaigns")
+  assignedLeads  Lead[]        @relation("AgentLeads")
+
+  @@index([role])
+  @@index([status])
+}
+
+model AgentProfile {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sipUsername  String?
+  sipExtension String?  @unique
+  status       String   @default("OFFLINE") // OFFLINE, AVAILABLE, RINGING, ON_CALL, PAUSED, BREAK
+  lastSeenAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@index([sipExtension])
+}
+
+// ----------------------------------------------------
+// Campaigns
+// ----------------------------------------------------
+model Campaign {
+  id                 String   @id @default(uuid())
+  name               String
+  description        String?
+  status             String   @default("DRAFT") // DRAFT, READY, RUNNING, PAUSED, COMPLETED, STOPPED
+  maxConcurrentCalls Int      @default(5)
+  retryLimit         Int      @default(3)
+  retryDelaySeconds  Int      @default(3600) // 1 hour default
+  callingStartTime   String   @default("09:00") // HH:mm format
+  callingEndTime     String   @default("18:00") // HH:mm format
+  timezone           String   @default("UTC")
+  recordCalls        Boolean  @default(true)
+  
+  // Dedicated Agent Assignment (Method 1 & Method 3)
+  assignedAgentId    String?
+  assignedAgent      User?    @relation("AgentCampaigns", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  leads     Lead[]
+  calls     Call[]
+  callbacks Callback[]
+
+  @@index([status])
+  @@index([assignedAgentId])
+}
+
+// ----------------------------------------------------
+// Leads
+// ----------------------------------------------------
+model Lead {
+  id            String    @id @default(uuid())
+  campaignId    String
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  // Specific Agent Assignment (Method 2 & Method 3)
+  assignedAgentId String?
+  assignedAgent   User?    @relation("AgentLeads", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+
+  name          String
+  phone         String
+  email         String?
+  status        String    @default("NEW") // NEW, QUEUED, CONTACTED, ANSWERED, NO_ANSWER, BUSY, FAILED, CALLBACK, COMPLETED, DO_NOT_CALL
+  attempts      Int       @default(0)
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime?
+  optedOut      Boolean   @default(false)
+  notes         String?
+  customFields  String?   // JSON formatted string
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  calls     Call[]
+  callbacks Callback[]
+
+  @@index([campaignId])
+  @@index([assignedAgentId])
+  @@index([phone])
+  @@index([status])
+  @@index([optedOut])
+  @@index([nextAttemptAt])
+}
+
+// ----------------------------------------------------
+// Calls
+// ----------------------------------------------------
+model Call {
+  id              String    @id @default(uuid())
+  leadId          String?
+  lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  leadName        String?
+  leadPhone       String?
+  campaignId      String
+  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  agentId         String?
+  agent           User?     @relation("AgentCalls", fields: [agentId], references: [id], onDelete: SetNull)
+  callId          String    @unique // Unique telephony session ID (e.g. Asterisk UniqueID or UUID)
+  direction       String    @default("OUTBOUND") // OUTBOUND, INBOUND
+  status          String    @default("QUEUED") // QUEUED, DIALING, RINGING, ANSWERED, NO_ANSWER, BUSY, FAILED, ENDED, CANCELLED
+  startedAt       DateTime  @default(now())
+  answeredAt      DateTime?
+  endedAt         DateTime?
+  durationSeconds Int       @default(0)
+  hangupCause     String?
+  disposition     String?   // Interested, Not Interested, Callback, No Answer, Busy, Wrong Number, Do Not Call, Completed, Other
+  notes           String?
+  recordingUrl    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  qaEvaluation    CallQA?
+
+  @@index([leadId])
+  @@index([campaignId])
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ----------------------------------------------------
+// Call QA & Multilingual AI Transcripts
+// ----------------------------------------------------
+model CallQA {
+  id                 String    @id @default(uuid())
+  callId             String    @unique
+  call               Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+  transcriptTanglish String?   // Spoken Tamil in English letters
+  transcriptEnglish  String?   // English translation
+  transcriptTamil    String?   // Pure Tamil script
+  summary            String?   // AI 1-paragraph summary
+  qaScore            Int?      // 0 - 100 Auto Rating
+  grade              String?   // 'A', 'B', 'C', 'F'
+  sentiment          String?   // 'POSITIVE', 'NEUTRAL', 'NEGATIVE', 'INTERESTED_HOT'
+  riskDisclaimer     Boolean   @default(false)
+  redFlagAlert       Boolean   @default(false)
+  redFlagReason      String?
+  qaFeedback         String?   // AI feedback for agent
+  auditorNotes       String?   // Human QA remarks
+  auditorId          String?
+  auditedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([qaScore])
+  @@index([redFlagAlert])
+  @@index([sentiment])
+}
+
+// ----------------------------------------------------
+// Scheduled Callbacks
+// ----------------------------------------------------
+model Callback {
+  id            String    @id @default(uuid())
+  leadId        String
+  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agentId       String?
+  agent         User?     @relation("AgentCallbacks", fields: [agentId], references: [id], onDelete: SetNull)
+  campaignId    String
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scheduledTime DateTime
+  notes         String?
+  status        String    @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([agentId])
+  @@index([scheduledTime])
+  @@index([status])
+}
+
+// ----------------------------------------------------
+// Audit Logging
+// ----------------------------------------------------
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String   // e.g. LOGIN, LOGOUT, CREATE_CAMPAIGN, START_CAMPAIGN, DNC_LEAD, EMERGENCY_STOP
+  entity    String   // e.g. USER, CAMPAIGN, LEAD, SYSTEM
+  entityId  String?
+  details   String?  // JSON string or summary text
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ----------------------------------------------------
+// System Settings
+// ----------------------------------------------------
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}

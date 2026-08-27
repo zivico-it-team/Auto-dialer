@@ -1,0 +1,29 @@
+{
+  "name": "call-center-dialer",
+  "version": "1.0.0",
+  "description": "Production-Oriented Web-based Call Center & SIP Auto-Dialer Platform",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix backend & npm run dev --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "build:backend": "npm run build --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "test": "npm run test --prefix backend",
+    "seed": "npm run seed --prefix backend",
+    "setup": "npm install --prefix backend && npm install --prefix frontend"
+  },
+  "keywords": [
+    "call-center",
+    "auto-dialer",
+    "asterisk",
+    "sip",
+    "zoiper",
+    "telephony",
+    "react",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC"
+}
