@@ -29,6 +29,8 @@ If the password contains `@`, `:`, `/`, `?`, `#`, `[`, or `]`, URL-encode those 
 
 Set a new, long `JWT_SECRET`; never upload the local `.env` file. Keep `TELEPHONY_PROVIDER=mock` until the Hostinger server is confirmed to reach the Asterisk AMI endpoint. Shared hosting may block outbound port `5038`, so verify this with Hostinger before switching to `asterisk`.
 
+Set `PORT=3000` for the Hostinger Node.js Web App; its proxy expects the application on that port.
+
 The included local `backend/.env` continues to work because `FRONTEND_URL` remains supported. New setup should use `FRONTEND_URLS`.
 
 ## 3. Build and upload the frontend
