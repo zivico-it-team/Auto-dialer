@@ -25,10 +25,11 @@ async function bootstrap() {
   dialerEngine.start();
 
   // 5. Listen on configured port
-  const server = httpServer.listen(config.port, () => {
+  // Hostinger supplies PORT for Node.js applications; bind to all interfaces.
+  const server = httpServer.listen(config.port, '0.0.0.0', () => {
     logger.info(`✅ Server listening on http://localhost:${config.port}`);
     logger.info(`📡 Telephony Mode: ${config.telephonyProvider.toUpperCase()}`);
-    logger.info(`🔗 Frontend Origin: ${config.frontendUrl}`);
+    logger.info(`🔗 Allowed frontend origins: ${config.frontendUrls.join(', ')}`);
   });
 
   // Graceful Shutdown

@@ -3,10 +3,15 @@ import path from 'path';
 
 dotenv.config();
 
+const frontendUrls = (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((url) => url.trim())
+  .filter(Boolean);
+
 export const config = {
   port: parseInt(process.env.PORT || '5000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  frontendUrls,
   jwtSecret: process.env.JWT_SECRET || 'fallback_secret_key_call_center_dialer',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   

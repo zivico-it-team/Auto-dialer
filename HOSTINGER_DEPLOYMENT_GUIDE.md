@@ -1,84 +1,89 @@
-# 🚀 Talking Wave — Hostinger hPanel Deployment Guide (MySQL Edition)
+# Talking Wave — Hostinger deployment
 
-This guide provides step-by-step instructions for deploying the **Talking Wave Auto Dialer & Multilingual QA Platform** to **Hostinger Web Hosting (hPanel)** with **MySQL Database**.
+The recommended production layout is:
 
----
+| Service | Public address | Hostinger location |
+| --- | --- | --- |
+| React frontend | `https://talkingwave.tech` | `public_html/` |
+| Node.js API and Socket.IO | `https://api.talkingwave.tech` | a Hostinger Node.js application |
+| MySQL | private Hostinger database host | Hostinger MySQL |
 
-## 📁 1. Architecture Overview on Hostinger
+Using `api.talkingwave.tech` is intentional. A single hostname cannot normally serve an independent static website and a Node.js application without a reverse-proxy rule. This layout works on Hostinger without depending on custom Apache/Nginx proxy configuration.
 
-| Component | Local Directory | Hostinger Destination | Purpose |
-| :--- | :--- | :--- | :--- |
-| **Frontend (React UI)** | `frontend/dist/` | `/public_html/` | Fast static single-page app with `.htaccess` rewrite rules. |
-| **Backend (Node.js API)** | `backend/` | `/home/uXXXXX/backend` or `/home/uXXXXX/api` | Node.js Express server + WebSocket Socket.io server. |
-| **Database (MySQL)** | Hostinger MySQL | Hostinger hPanel ➔ Databases | High-performance relational database. |
+## 1. Before deployment
 
----
+1. Confirm the Hosting plan includes **Node.js applications** and supports WebSockets. If it does not, the React site can stay on Hostinger but the API must be hosted on a Node host or VPS.
+2. Point `talkingwave.tech` to the Hostinger website.
+3. In hPanel, create a subdomain named `api` for `api.talkingwave.tech` and enable SSL for both domains.
+4. In **Databases → MySQL Databases**, create a database and a database user. Copy the *exact* database name, username, password, and host displayed by hPanel. Hostinger commonly prefixes database names and usernames.
 
-## 🛠️ 2. Step-by-Step Deployment Instructions
+## 2. Production environment file
 
-### Step 1: Create MySQL Database in Hostinger hPanel
-1. Open your [Hostinger hPanel](https://hpanel.hostinger.com/).
-2. Go to **Databases ➔ Management ➔ Create a New MySQL Database**:
-   - **Database Name**: e.g., `u123456789_dialer`
-   - **MySQL Username**: e.g., `u123456789_admin`
-   - **Password**: Create a strong password (e.g. `TalkingWave2026!#`)
-3. Click **Create**. Note down the Database Name, User, and Password.
+Copy [`backend/.env.production.example`](backend/.env.production.example) to `backend/.env` **on Hostinger**, then fill `DATABASE_URL` using the details from hPanel:
 
----
+```env
+DATABASE_URL="mysql://u123456789_user:URL_ENCODED_PASSWORD@localhost:3306/u123456789_talkingwave"
+```
 
-### Step 2: Upload Frontend Files to `public_html`
-1. Go to **Websites ➔ Manage ➔ File Manager**.
-2. Navigate into **`public_html/`**.
-3. Upload all files from your local `frontend/dist/` directory:
-   - `index.html`
-   - `.htaccess`
-   - `logo.png`
-   - `assets/` (Folder containing compiled JS & CSS)
+If the password contains `@`, `:`, `/`, `?`, `#`, `[`, or `]`, URL-encode those characters. For example `Pass#2026!` becomes `Pass%232026!`.
 
-> [!NOTE]
-> The included `.htaccess` file automatically configures React Router so refreshing `/qa-portal`, `/campaigns`, or `/agents` works cleanly without 404 errors.
+Set a new, long `JWT_SECRET`; never upload the local `.env` file. Keep `TELEPHONY_PROVIDER=mock` until the Hostinger server is confirmed to reach the Asterisk AMI endpoint. Shared hosting may block outbound port `5038`, so verify this with Hostinger before switching to `asterisk`.
 
----
+The included local `backend/.env` continues to work because `FRONTEND_URL` remains supported. New setup should use `FRONTEND_URLS`.
 
-### Step 3: Set Up Backend Node.js App on Hostinger
-1. In hPanel, search for **Node.js** (Under *Websites* or *Advanced*).
-2. Click **Create Application** (or *Setup Node.js*):
-   - **Node.js Version**: Select `18.x` or `20.x`.
-   - **Application Root**: e.g., `/home/uXXXXX/backend`.
-   - **Application Startup File**: `app.js` (or `dist/server.js`).
-   - **Application Mode**: `Production`.
-3. Upload the contents of your `backend/` folder:
-   - `app.js`
-   - `dist/` folder
-   - `prisma/` folder
-   - `package.json`
-   - `.env.production`
-4. Rename `.env.production` to `.env` inside the backend directory on Hostinger, and update your MySQL connection:
-   ```env
-   DATABASE_URL="mysql://u123456789_admin:TalkingWave2026!#@localhost:3306/u123456789_dialer"
-   ```
-5. In Hostinger Terminal / SSH (or via hPanel Node.js manager):
-   - Run `npm install --omit=dev`
-   - Run `npx prisma db push` (This creates all MySQL tables automatically)
-   - Run `npm run seed` (Seeds initial Admin, Supervisor, QA Auditor, and Agent accounts)
-6. Click **Start Application** in hPanel.
+## 3. Build and upload the frontend
 
----
+On the development computer:
 
-### Step 4: Default Login Credentials
+```powershell
+Copy-Item frontend/.env.production.example frontend/.env.production
+npm run build:frontend
+```
 
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **System Admin** | `admin@callcenter.io` | `Password123!` |
-| **Floor Supervisor** | `supervisor@callcenter.io` | `Password123!` |
-| **QA Auditor** | `qa@callcenter.io` | `Password123!` |
-| **Agent 101** | `alex@callcenter.io` | `Password123!` |
-| **Agent 102** | `sarah@callcenter.io` | `Password123!` |
+Upload the **contents** of `frontend/dist/` to Hostinger `public_html/` for `talkingwave.tech`. The build includes `.htaccess`, which makes direct refreshes of React routes such as `/dashboard` work.
 
----
+The build-time production values are:
 
-## 🌊 3. ImpactPBX Telephony Connection
+```env
+VITE_API_BASE_URL=https://api.talkingwave.tech/api
+VITE_SOCKET_URL=https://api.talkingwave.tech
+```
 
-Once deployed, visit your **Settings (`/settings`)** page in the browser to view the **Talking Wave ImpactPBX Cloud Engine** status.
-* Agents can connect their softphones (Zoiper / MicroSIP) using domain: `talkingwave.impactpbx.com`
-* SIP Ports: `5060` (UDP/TCP), `7443` (WebRTC WSS).
+For local development, do not create `frontend/.env.production`; start the project normally with `npm run dev`. Vite will continue to proxy `/api` and `/socket.io` to `http://localhost:5000`.
+
+## 4. Deploy the backend Node.js application
+
+1. In hPanel create a Node.js application for `api.talkingwave.tech`.
+2. Use Node.js **20 LTS or newer**, production mode, and set the startup file to `app.js`.
+3. Upload the `backend/` directory to the Node application's root, including `src/`, `prisma/`, `package.json`, `package-lock.json`, and `app.js`. Put the completed `.env` in that same directory.
+4. In Hostinger Terminal, from the backend application root, run:
+
+```bash
+npm ci
+npx prisma generate
+npx prisma db push
+npm run build
+```
+
+5. Start or restart the application from hPanel.
+
+Verify it at `https://api.talkingwave.tech/health`. A successful response is JSON with `success: true`. Then open `https://talkingwave.tech` and sign in.
+
+## 5. Local environment
+
+Create `backend/.env` from [`backend/.env.example`](backend/.env.example), enter the local MySQL password, then run:
+
+```powershell
+npm run setup
+npm run dev
+```
+
+Do not set `VITE_API_BASE_URL` or `VITE_SOCKET_URL` for normal local development. The existing Vite proxy handles both the API and Socket.IO connection.
+
+## Deployment checklist
+
+- `https://talkingwave.tech` has a valid SSL certificate.
+- `https://api.talkingwave.tech/health` returns HTTP 200.
+- Hostinger database details have replaced every `HOSTINGER_*` placeholder.
+- `JWT_SECRET` and Asterisk password are unique production values.
+- `TELEPHONY_PROVIDER=asterisk` is enabled only after the AMI network connection succeeds.

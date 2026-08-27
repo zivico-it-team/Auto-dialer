@@ -31,3 +31,10 @@ Thumbs.db
 # Call recordings (storage)
 recordings/
 uploads/
+
+# Runtime secrets and environment-specific connection strings
+.env
+.env.*
+!.env.example
+!*.env.example
+!.env.*.example
