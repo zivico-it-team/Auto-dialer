@@ -9,6 +9,8 @@ import {
   Activity,
   Edit2,
   Trash2,
+  Lock,
+  Globe,
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { Badge } from '../components/common/Badge';
@@ -22,6 +24,7 @@ export const AgentsPage: React.FC = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSipOpen, setIsSipOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<any>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // New Agent Form
   const [newAgent, setNewAgent] = useState({
@@ -68,6 +71,7 @@ export const AgentsPage: React.FC = () => {
 
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     try {
       const res = await apiClient.post('/agents', newAgent);
       if (res.data.success) {
@@ -81,8 +85,21 @@ export const AgentsPage: React.FC = () => {
         });
         fetchAgents();
       }
-    } catch (err) {
-      console.error('Error creating agent', err);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || 'Failed to create agent');
+    }
+  };
+
+  const handleDeleteAgent = async (agentId: string, agentName: string) => {
+    if (window.confirm(`Are you sure you want to delete agent "${agentName}"? This will unassign their active station and remove access.`)) {
+      try {
+        const res = await apiClient.delete(`/agents/${agentId}`);
+        if (res.data.success) {
+          fetchAgents();
+        }
+      } catch (err: any) {
+        alert(err.response?.data?.error || 'Failed to delete agent');
+      }
     }
   };
 
@@ -96,8 +113,8 @@ export const AgentsPage: React.FC = () => {
         setIsSipOpen(false);
         fetchAgents();
       }
-    } catch (err) {
-      console.error('Error updating SIP credentials', err);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Error updating SIP credentials');
     }
   };
 
@@ -116,11 +133,14 @@ export const AgentsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Agent Management</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Configure softphone SIP extensions, monitor agent readiness, and track productivity.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Configure softphone SIP extensions, monitor agent readiness, and manage team credentials.</p>
         </div>
 
         <button
-          onClick={() => setIsAddOpen(true)}
+          onClick={() => {
+            setErrorMsg(null);
+            setIsAddOpen(true);
+          }}
           className="px-4 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center"
         >
           <Plus className="w-4 h-4 mr-1.5" /> Add New Agent
@@ -186,18 +206,29 @@ export const AgentsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Controls */}
+              {/* Action Controls: Configure SIP & Delete Agent */}
               <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <span className="text-[11px] text-slate-400 dark:text-slate-500">
                   Last seen: {agent.agentProfile?.lastSeenAt ? new Date(agent.agentProfile.lastSeenAt).toLocaleTimeString() : 'Never'}
                 </span>
 
-                <button
-                  onClick={() => openSipModal(agent)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors flex items-center"
-                >
-                  <Edit2 className="w-3 h-3 mr-1" /> Configure SIP
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => openSipModal(agent)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors flex items-center"
+                    title="Configure ImpactPBX SIP Extension"
+                  >
+                    <Edit2 className="w-3 h-3 mr-1" /> Configure SIP
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteAgent(agent.id, agent.name)}
+                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-600 dark:text-rose-400 hover:text-white border border-rose-500/20 font-bold text-xs transition-colors flex items-center"
+                    title="Delete Agent Account"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           );
@@ -207,6 +238,12 @@ export const AgentsPage: React.FC = () => {
       {/* Add Agent Modal */}
       <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} title="Add New Agent">
         <form onSubmit={handleCreateAgent} className="space-y-4">
+          {errorMsg && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400">
+              {errorMsg}
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
               Full Name *
@@ -216,19 +253,21 @@ export const AgentsPage: React.FC = () => {
               required
               value={newAgent.name}
               onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+              placeholder="e.g. Yadhav (Mohan)"
               className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-200"
             />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-              Email Address *
+              Email Address (Login Username) *
             </label>
             <input
               type="email"
               required
               value={newAgent.email}
               onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
+              placeholder="e.g. yadhav@talkingwave.com"
               className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-200"
             />
           </div>
@@ -236,7 +275,7 @@ export const AgentsPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                SIP Extension (e.g. 101, 102)
+                ImpactPBX Extension (e.g. 101, 102)
               </label>
               <input
                 type="text"
@@ -249,15 +288,21 @@ export const AgentsPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Password
+                Portal Login Password *
               </label>
               <input
                 type="password"
+                required
                 value={newAgent.password}
                 onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })}
+                placeholder="Min. 6 chars"
                 className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-200 font-mono"
               />
             </div>
+          </div>
+
+          <div className="p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-[11px] text-cyan-800 dark:text-cyan-300">
+            💡 <strong>Note on Passwords:</strong> The <strong>Password</strong> above is the password used by this agent to log in to this Auto-Dialer web app. Their softphone (Zoiper/ImpactPBX) uses their ImpactPBX extension password from <code className="font-mono font-bold">talkingwave.impactpbx.com</code>.
           </div>
 
           <div className="pt-4 flex items-center justify-end space-x-2 border-t border-slate-200 dark:border-slate-800">
@@ -279,11 +324,16 @@ export const AgentsPage: React.FC = () => {
       </Modal>
 
       {/* Configure SIP Modal */}
-      <Modal isOpen={isSipOpen} onClose={() => setIsSipOpen(false)} title={`Configure SIP — ${selectedAgent?.name}`}>
+      <Modal isOpen={isSipOpen} onClose={() => setIsSipOpen(false)} title={`Configure ImpactPBX SIP — ${selectedAgent?.name}`}>
         <form onSubmit={handleUpdateSip} className="space-y-4">
+          <div className="p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl text-xs space-y-1">
+            <div className="text-slate-500 font-semibold">PBX Server Domain:</div>
+            <div className="font-mono text-cyan-600 dark:text-cyan-400 font-bold">talkingwave.impactpbx.com</div>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-              SIP Extension *
+              SIP Extension Number *
             </label>
             <input
               type="text"
@@ -303,7 +353,7 @@ export const AgentsPage: React.FC = () => {
               type="text"
               value={sipForm.sipUsername}
               onChange={(e) => setSipForm({ ...sipForm, sipUsername: e.target.value })}
-              placeholder="e.g. agent101"
+              placeholder="e.g. 101"
               className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-200 font-mono"
             />
           </div>

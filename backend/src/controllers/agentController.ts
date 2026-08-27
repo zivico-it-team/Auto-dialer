@@ -1,9 +1,18 @@
 import { Response, NextFunction } from 'express';
+import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import { prisma } from '../config/database.js';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { emitCallEvent } from '../socket/socketEmitter.js';
 import { AuditService } from '../services/auditService.js';
+
+export const createAgentSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  phone: z.string().optional(),
+  sipExtension: z.string().optional(),
+});
 
 export const updateAgentStatusSchema = z.object({
   status: z.enum(['OFFLINE', 'AVAILABLE', 'RINGING', 'ON_CALL', 'PAUSED', 'BREAK']),
@@ -80,6 +89,106 @@ export class AgentController {
       );
 
       res.json({ success: true, data: formattedAgents });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async create(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = req.body;
+      const existingUser = await prisma.user.findUnique({
+        where: { email: data.email.toLowerCase() },
+      });
+
+      if (existingUser) {
+        res.status(400).json({ success: false, error: 'Email is already registered' });
+        return;
+      }
+
+      if (data.sipExtension) {
+        const existingSip = await prisma.agentProfile.findUnique({
+          where: { sipExtension: data.sipExtension },
+        });
+        if (existingSip) {
+          res.status(400).json({ success: false, error: 'SIP Extension is already assigned to another agent' });
+          return;
+        }
+      }
+
+      const passwordHash = await bcrypt.hash(data.password, 10);
+      const user = await prisma.user.create({
+        data: {
+          name: data.name,
+          email: data.email.toLowerCase(),
+          phone: data.phone,
+          passwordHash,
+          role: 'AGENT',
+          status: 'ACTIVE',
+          agentProfile: {
+            create: {
+              sipExtension: data.sipExtension || undefined,
+              sipUsername: data.sipExtension || data.email.split('@')[0],
+              status: 'OFFLINE',
+            },
+          },
+        },
+        include: { agentProfile: true },
+      });
+
+      await AuditService.log({
+        userId: req.user?.userId,
+        action: 'CREATE_AGENT',
+        entity: 'USER',
+        entityId: user.id,
+        details: { name: user.name, email: user.email, sipExtension: data.sipExtension },
+        ipAddress: req.ip,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Agent created successfully',
+        data: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          agentProfile: user.agentProfile,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async delete(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = String(req.params.id);
+
+      const agent = await prisma.user.findUnique({
+        where: { id },
+        include: { agentProfile: true },
+      });
+
+      if (!agent) {
+        res.status(404).json({ success: false, error: 'Agent not found' });
+        return;
+      }
+
+      // Delete agent profile first if needed, then user (Cascade will handle related profile)
+      await prisma.user.delete({
+        where: { id },
+      });
+
+      await AuditService.log({
+        userId: req.user?.userId,
+        action: 'DELETE_AGENT',
+        entity: 'USER',
+        entityId: id,
+        details: { name: agent.name, email: agent.email },
+        ipAddress: req.ip,
+      });
+
+      res.json({ success: true, message: 'Agent deleted successfully' });
     } catch (err) {
       next(err);
     }

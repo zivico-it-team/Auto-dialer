@@ -1,11 +1,11 @@
-// Prisma Schema for Talking Wave SIP Call Center Auto-Dialer Platform
+// Prisma Schema for Talking Wave SIP Call Center Auto-Dialer Platform (MySQL)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -18,7 +18,7 @@ model User {
   email        String        @unique
   phone        String?
   passwordHash String
-  role         String        @default("AGENT") // ADMIN, SUPERVISOR, AGENT
+  role         String        @default("AGENT") // ADMIN, SUPERVISOR, AGENT, QA_AUDITOR
   status       String        @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -55,7 +55,7 @@ model AgentProfile {
 model Campaign {
   id                 String   @id @default(uuid())
   name               String
-  description        String?
+  description        String?  @db.Text
   status             String   @default("DRAFT") // DRAFT, READY, RUNNING, PAUSED, COMPLETED, STOPPED
   maxConcurrentCalls Int      @default(5)
   retryLimit         Int      @default(3)
@@ -65,7 +65,7 @@ model Campaign {
   timezone           String   @default("UTC")
   recordCalls        Boolean  @default(true)
   
-  // Dedicated Agent Assignment (Method 1 & Method 3)
+  // Dedicated Agent Assignment
   assignedAgentId    String?
   assignedAgent      User?    @relation("AgentCampaigns", fields: [assignedAgentId], references: [id], onDelete: SetNull)
 
@@ -88,7 +88,7 @@ model Lead {
   campaignId    String
   campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   
-  // Specific Agent Assignment (Method 2 & Method 3)
+  // Specific Agent Assignment
   assignedAgentId String?
   assignedAgent   User?    @relation("AgentLeads", fields: [assignedAgentId], references: [id], onDelete: SetNull)
 
@@ -100,8 +100,8 @@ model Lead {
   lastAttemptAt DateTime?
   nextAttemptAt DateTime?
   optedOut      Boolean   @default(false)
-  notes         String?
-  customFields  String?   // JSON formatted string
+  notes         String?   @db.Text
+  customFields  String?   @db.Text // JSON formatted string
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -138,8 +138,8 @@ model Call {
   durationSeconds Int       @default(0)
   hangupCause     String?
   disposition     String?   // Interested, Not Interested, Callback, No Answer, Busy, Wrong Number, Do Not Call, Completed, Other
-  notes           String?
-  recordingUrl    String?
+  notes           String?   @db.Text
+  recordingUrl    String?   @db.Text
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -159,18 +159,18 @@ model CallQA {
   id                 String    @id @default(uuid())
   callId             String    @unique
   call               Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
-  transcriptTanglish String?   // Spoken Tamil in English letters
-  transcriptEnglish  String?   // English translation
-  transcriptTamil    String?   // Pure Tamil script
-  summary            String?   // AI 1-paragraph summary
-  qaScore            Int?      // 0 - 100 Auto Rating
-  grade              String?   // 'A', 'B', 'C', 'F'
-  sentiment          String?   // 'POSITIVE', 'NEUTRAL', 'NEGATIVE', 'INTERESTED_HOT'
+  transcriptTanglish String?   @db.LongText // Spoken Tamil in English letters
+  transcriptEnglish  String?   @db.LongText // English translation
+  transcriptTamil    String?   @db.LongText // Pure Tamil script
+  summary            String?   @db.Text     // AI 1-paragraph summary
+  qaScore            Int?                   // 0 - 100 Auto Rating
+  grade              String?                // 'A', 'B', 'C', 'F'
+  sentiment          String?                // 'POSITIVE', 'NEUTRAL', 'NEGATIVE', 'INTERESTED_HOT'
   riskDisclaimer     Boolean   @default(false)
   redFlagAlert       Boolean   @default(false)
-  redFlagReason      String?
-  qaFeedback         String?   // AI feedback for agent
-  auditorNotes       String?   // Human QA remarks
+  redFlagReason      String?   @db.Text
+  qaFeedback         String?   @db.Text     // AI feedback for agent
+  auditorNotes       String?   @db.Text     // Human QA remarks
   auditorId          String?
   auditedAt          DateTime?
   createdAt          DateTime  @default(now())
@@ -193,7 +193,7 @@ model Callback {
   campaignId    String
   campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   scheduledTime DateTime
-  notes         String?
+  notes         String?   @db.Text
   status        String    @default("PENDING") // PENDING, COMPLETED, CANCELLED
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -214,7 +214,7 @@ model AuditLog {
   action    String   // e.g. LOGIN, LOGOUT, CREATE_CAMPAIGN, START_CAMPAIGN, DNC_LEAD, EMERGENCY_STOP
   entity    String   // e.g. USER, CAMPAIGN, LEAD, SYSTEM
   entityId  String?
-  details   String?  // JSON string or summary text
+  details   String?  @db.Text // JSON string or summary text
   ipAddress String?
   createdAt DateTime @default(now())
 
@@ -229,7 +229,7 @@ model AuditLog {
 model SystemSetting {
   id          String   @id @default(uuid())
   key         String   @unique
-  value       String
+  value       String   @db.Text
   description String?
   updatedAt   DateTime @updatedAt
 
