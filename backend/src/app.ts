@@ -46,9 +46,13 @@ export function createApp() {
   // Global Rate Limiting
   app.use('/api', apiLimiter);
 
-  app.get('/health', (_req, res) => {
+  // Hostinger/LiteSpeed may probe the domain root. Return a successful health
+  // response there as well so a healthy API is not restarted for a 404.
+  const healthHandler = (_req: express.Request, res: express.Response) => {
     res.status(200).json({ success: true, environment: config.nodeEnv });
-  });
+  };
+  app.get('/', healthHandler);
+  app.get('/health', healthHandler);
 
   // Mount API Routes
   app.use('/api', routes);
