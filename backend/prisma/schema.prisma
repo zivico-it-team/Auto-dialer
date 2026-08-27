@@ -1,9 +1,10 @@
 // Prisma Schema for Talking Wave SIP Call Center Auto-Dialer Platform (MySQL)
 
 generator client {
-  provider      = "prisma-client-js"
-  engineType    = "binary"
-  binaryTargets = ["native", "debian-openssl-1.1.x"]
+  provider   = "prisma-client-js"
+  // Use the JavaScript driver adapter instead of Prisma's native Rust query
+  // engine. The native engine crashes under Hostinger shared Node hosting.
+  engineType = "client"
 }
 
 datasource db {
