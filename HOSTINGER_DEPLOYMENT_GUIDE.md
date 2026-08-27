@@ -56,7 +56,7 @@ For local development, do not create `frontend/.env.production`; start the proje
 ## 4. Deploy the backend Node.js application
 
 1. In hPanel create a Node.js application for `talkingwave.tech` with root directory `backend`.
-2. Use Node.js **20 LTS or newer**, production mode, and set the startup file to `app.js`.
+2. Use Node.js **20 LTS or newer**, production mode, and set the entry file to `app.js`. The backend `postinstall` script generates Prisma client code and compiles `src/server.ts` to `dist/server.js` automatically during Hostinger's dependency installation.
 3. Upload the `backend/` directory to the Node application's root, including `src/`, `prisma/`, `package.json`, `package-lock.json`, and `app.js`. Put the completed `.env` in that same directory.
 4. In Hostinger Terminal, from the backend application root, run:
 
