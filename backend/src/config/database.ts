@@ -16,11 +16,24 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export async function connectDatabase() {
-  try {
-    await prisma.$connect();
-    console.log('✅ Database connected successfully.');
-  } catch (error) {
-    console.error('❌ Database connection failed:', error);
-    process.exit(1);
+  // Hostinger replaces a running Node.js process with a new one during a
+  // restart. Prisma can briefly reject the overlapping connection attempt;
+  // retry so the replacement process does not exit and leave the site at 503.
+  const maxAttempts = 5;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await prisma.$connect();
+      console.log('Database connected successfully.');
+      return;
+    } catch (error) {
+      console.error(`Database connection attempt ${attempt}/${maxAttempts} failed:`, error);
+
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
   }
 }
