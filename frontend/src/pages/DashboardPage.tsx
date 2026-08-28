@@ -129,7 +129,10 @@ export const DashboardPage: React.FC = () => {
           <div className="flex items-center space-x-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-1.5 rounded-xl text-xs shadow-sm">
             <Radio className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 animate-pulse" />
             <span className="text-slate-600 dark:text-slate-300">
-              Active Mode: <strong className="text-cyan-600 dark:text-cyan-400 font-mono">{liveSnapshot?.telephonyProvider || 'Mock Engine'}</strong>
+              Active Mode:{' '}
+              <strong className={liveSnapshot?.telephonyProvider === 'ImpactPbxProvider' ? 'text-emerald-600 dark:text-emerald-400 font-mono font-bold' : 'text-cyan-600 dark:text-cyan-400 font-mono'}>
+                {liveSnapshot?.telephonyProvider === 'ImpactPbxProvider' ? '⚡ Live ImpactPBX Engine' : (liveSnapshot?.telephonyProvider || 'Mock Engine')}
+              </strong>
             </span>
           </div>
         </div>
