@@ -1,3 +1,5 @@
+import { validateAndNormalizePhone } from './phoneValidator.js';
+
 export interface ParsedCsvRow {
   name: string;
   phone: string;
@@ -13,6 +15,27 @@ export interface CsvParseResult {
 }
 
 export function parseLeadCsv(csvContent: string): CsvParseResult {
+  // 1. Detect binary Excel (.xlsx / .xls) files or null byte corruption
+  if (
+    csvContent.startsWith('PK\x03\x04') ||
+    csvContent.includes('\x00') ||
+    csvContent.includes('\uFFFD') ||
+    /[\x00-\x08\x0E-\x1F]/.test(csvContent.slice(0, 50))
+  ) {
+    return {
+      validRows: [],
+      invalidRows: [
+        {
+          row: 1,
+          data: null,
+          reason:
+            "Invalid file format: The uploaded file is an Excel (.xlsx / .xls) binary workbook. Please open the file in Excel, choose 'Save As', and select 'CSV (Comma delimited) (*.csv)'.",
+        },
+      ],
+      duplicatesCount: 0,
+    };
+  }
+
   const lines = csvContent.split(/\r?\n/).filter((line) => line.trim().length > 0);
   if (lines.length === 0) {
     return { validRows: [], invalidRows: [], duplicatesCount: 0 };
@@ -51,33 +74,35 @@ export function parseLeadCsv(csvContent: string): CsvParseResult {
     }
     values.push(currentValue.trim().replace(/^["']|["']$/g, ''));
 
-    const name = nameIdx !== -1 && values[nameIdx] ? values[nameIdx] : `Lead #${i}`;
-    const rawPhone = phoneIdx !== -1 && values[phoneIdx] ? values[phoneIdx] : values[0] || '';
-    const email = emailIdx !== -1 && values[emailIdx] ? values[emailIdx] : undefined;
-    const notes = notesIdx !== -1 && values[notesIdx] ? values[notesIdx] : undefined;
+    const name = nameIdx !== -1 && values[nameIdx] ? values[nameIdx].trim() : `Lead #${i}`;
+    const rawPhone = phoneIdx !== -1 && values[phoneIdx] ? values[phoneIdx].trim() : values[0]?.trim() || '';
+    const email = emailIdx !== -1 && values[emailIdx] ? values[emailIdx].trim() : undefined;
+    const notes = notesIdx !== -1 && values[notesIdx] ? values[notesIdx].trim() : undefined;
 
-    // Clean phone
-    const cleanedPhone = rawPhone.replace(/[\s\-\.\(\)]/g, '');
-    if (!cleanedPhone || cleanedPhone.length < 7) {
+    // Clean phone number & validate
+    const phoneValidation = validateAndNormalizePhone(rawPhone);
+    if (!phoneValidation.isValid) {
       invalidRows.push({
         row: i + 1,
         data: values,
-        reason: 'Missing or invalid phone number (less than 7 digits)',
+        reason: (phoneValidation.error || 'invalid phone number').toLowerCase(),
       });
       continue;
     }
 
-    if (seenPhones.has(cleanedPhone)) {
+    const cleanPhone = phoneValidation.normalized;
+
+    if (seenPhones.has(cleanPhone)) {
       duplicatesCount++;
       invalidRows.push({
         row: i + 1,
         data: values,
-        reason: `Duplicate phone number in batch: ${cleanedPhone}`,
+        reason: `Duplicate phone number in batch: ${cleanPhone}`,
       });
       continue;
     }
 
-    seenPhones.add(cleanedPhone);
+    seenPhones.add(cleanPhone);
 
     // Collect any unmapped columns as customFields
     const customFields: Record<string, any> = {};
@@ -89,7 +114,7 @@ export function parseLeadCsv(csvContent: string): CsvParseResult {
 
     validRows.push({
       name,
-      phone: cleanedPhone,
+      phone: cleanPhone,
       email,
       notes,
       customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
