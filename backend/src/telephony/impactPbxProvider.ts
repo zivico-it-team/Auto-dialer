@@ -10,7 +10,7 @@ export interface ImpactPbxConfig {
   username?: string;
   password?: string;
   domain?: string; // talkingwave.impactpbx.com
-  outboundTrunk?: string; // SIP gateway name
+  outboundTrunk?: string; // SIP gateway name or loopback
   outboundPrefix?: string; // e.g. + or 00
   context?: string; // e.g. from-internal or default
   apiUrl?: string; // e.g. https://talkingwave.impactpbx.com/app/click_to_call/click_to_call.php
@@ -34,7 +34,7 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
       port: 5038,
       domain: 'talkingwave.impactpbx.com',
       context: 'from-internal',
-      outboundTrunk: 'SIP/talkingwave_trunk',
+      outboundTrunk: 'loopback',
       outboundPrefix: '+',
       apiUrl: 'https://talkingwave.impactpbx.com/app/click_to_call/click_to_call.php',
       ...config,
@@ -248,6 +248,21 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
     }
   }
 
+  private getChannelString(cleanPhone: string): string {
+    const trunk = this.config.outboundTrunk || '';
+    const domain = this.config.domain || 'talkingwave.impactpbx.com';
+
+    if (!trunk || trunk === 'loopback' || trunk === 'default' || trunk === 'SIP/talkingwave_trunk') {
+      return `loopback/${cleanPhone}/${domain}`;
+    }
+
+    if (trunk.startsWith('sofia/') || trunk.startsWith('SIP/') || trunk.startsWith('PJSIP/') || trunk.startsWith('loopback/')) {
+      return `${trunk}/${cleanPhone}`;
+    }
+
+    return `sofia/gateway/${trunk}/${cleanPhone}`;
+  }
+
   /**
    * Originates a real telephone call via ImpactPBX Cloud Engine
    */
@@ -260,11 +275,10 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
       cleanPhone = `${prefix}${cleanPhone}`;
     }
 
-    const trunk = this.config.outboundTrunk || 'SIP/talkingwave_trunk';
-    const channel = `${trunk}/${cleanPhone}`;
+    const channel = this.getChannelString(cleanPhone);
     const agentExt = options.agentExtension || '101';
 
-    logger.info(`🌊 [ImpactPBX] Originating Outbound Call -> ${cleanPhone} (Bridging to Agent Ext: ${agentExt})...`);
+    logger.info(`🌊 [ImpactPBX] Originating Outbound Call -> ${cleanPhone} (Channel: ${channel} | Bridging to Agent Ext: ${agentExt})...`);
 
     const activeChannel: ActiveChannel = {
       callId: options.callId,
