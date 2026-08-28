@@ -11,6 +11,7 @@ export interface AsteriskConfig {
   secret: string;
   context?: string;
   outboundTrunk?: string;
+  outboundPrefix?: string;
 }
 
 export class AsteriskAmiProvider extends EventEmitter implements ITelephonyProvider {
@@ -284,7 +285,12 @@ export class AsteriskAmiProvider extends EventEmitter implements ITelephonyProvi
 
     const actionId = `DIAL_${options.callId}`;
     const trunk = this.config.outboundTrunk || 'SIP/trunk_provider';
-    const channel = `${trunk}/${options.phoneNumber}`;
+    const prefix = this.config.outboundPrefix || '';
+    let dialedNumber = options.phoneNumber;
+    if (prefix && !dialedNumber.startsWith(prefix)) {
+      dialedNumber = `${prefix}${dialedNumber}`;
+    }
+    const channel = `${trunk}/${dialedNumber}`;
 
     const activeChannel: ActiveChannel = {
       callId: options.callId,

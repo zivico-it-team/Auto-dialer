@@ -26,6 +26,7 @@ export const config = {
     password: process.env.ASTERISK_PASSWORD || 'asterisk',
     context: process.env.ASTERISK_CALL_CONTEXT || 'from-internal',
     outboundTrunk: process.env.ASTERISK_OUTBOUND_TRUNK || 'SIP/trunk_provider',
+    outboundPrefix: process.env.ASTERISK_OUTBOUND_PREFIX || process.env.OUTBOUND_PREFIX || '',
   },
   sip: {
     domain: process.env.SIP_DOMAIN || '127.0.0.1',

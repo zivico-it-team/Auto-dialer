@@ -17,6 +17,7 @@ class TelephonyServiceManager {
         secret: config.asterisk.password,
         context: config.asterisk.context,
         outboundTrunk: config.asterisk.outboundTrunk,
+        outboundPrefix: config.asterisk.outboundPrefix,
       });
     } else {
       logger.info('Initializing Mock Telephony Provider (Simulated PBX for local dev/tests)...');
