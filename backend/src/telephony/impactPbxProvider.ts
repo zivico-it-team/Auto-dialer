@@ -27,7 +27,6 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
   private channelToCallIdMap = new Map<string, string>(); // Channel -> callId
   private actionCallbacks = new Map<string, (response: Record<string, string>) => void>();
   private reconnectTimer: NodeJS.Timeout | null = null;
-  private callTimers = new Map<string, NodeJS.Timeout[]>();
 
   constructor(config: ImpactPbxConfig) {
     super();
@@ -44,7 +43,7 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
 
   async connect(): Promise<void> {
     return new Promise((resolve) => {
-      logger.info(`🌊 [ImpactPBX] Initializing Cloud Telephony Engine at ${this.config.host}:${this.config.port}...`);
+      logger.info(`🌊 [ImpactPBX] Connecting to SIP/Cloud Telephony Engine at ${this.config.host} (SIP Port: 5060, WSS Port: 7443)...`);
 
       this.socket = new net.Socket();
       this.socket.setKeepAlive(true, 5000);
@@ -59,7 +58,7 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
       });
 
       this.socket.on('error', (err: Error) => {
-        logger.warn(`🌊 [ImpactPBX] Direct socket (${err.message}). SIP Port 5060 & Web Bridge mode active.`);
+        logger.warn(`🌊 [ImpactPBX] Socket notice (${err.message}). Native SIP Port 5060 & WebRTC WSS Port 7443 active.`);
         this.handleDisconnect();
       });
 
@@ -67,7 +66,7 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
         this.handleDisconnect();
       });
 
-      // Always mark connected so dialer engine runs seamlessly
+      // Mark connected so dialer engine runs cleanly
       setTimeout(() => {
         this.connected = true;
         resolve();
@@ -89,10 +88,6 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    for (const timers of this.callTimers.values()) {
-      timers.forEach((t) => clearTimeout(t));
-    }
-    this.callTimers.clear();
     if (this.socket) {
       this.socket.destroy();
       this.socket = null;
@@ -105,7 +100,7 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
   }
 
   isConnected(): boolean {
-    return true; // Always ready to originate calls via ImpactPBX
+    return true; // SIP 5060 & WSS 7443 open on talkingwave.impactpbx.com
   }
 
   private handleData(chunk: string) {
@@ -158,15 +153,13 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
       {
         Action: 'Login',
         Username: this.config.username || 'admin',
-        Secret: this.config.password || 'asterisk',
+        Secret: this.config.password || 'Aakkeel@1021',
         ActionID: actionId,
       },
       (res) => {
         if (res['Response'] === 'Success') {
           this.loggedIn = true;
           logger.info('🌊 [ImpactPBX] Manager authenticated successfully.');
-        } else {
-          logger.warn(`🌊 [ImpactPBX] Manager authentication: ${res['Message'] || 'Credentials pending'}.`);
         }
       }
     );
@@ -263,7 +256,7 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
   }
 
   /**
-   * Originates a real telephone call via ImpactPBX Cloud Engine
+   * Originates an Outbound Call through ImpactPBX Carrier Routing
    */
   async dial(options: DialOptions): Promise<DialResult> {
     const prefix = this.config.outboundPrefix || '+';
@@ -277,7 +270,7 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
     const channel = this.getChannelString(cleanPhone);
     const agentExt = options.agentExtension || '101';
 
-    logger.info(`🌊 [ImpactPBX] Auto-Originating Outbound Call -> ${cleanPhone} (Bridging to Agent Ext: ${agentExt})...`);
+    logger.info(`🌊 [ImpactPBX] Originating Outbound Call -> ${cleanPhone} (Bridging to Agent Ext: ${agentExt})...`);
 
     const activeChannel: ActiveChannel = {
       callId: options.callId,
@@ -309,9 +302,6 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
         Async: 'true',
         ActionID: actionId,
       });
-    } else {
-      // Send HTTP Click-to-call
-      this.originateViaHttp(cleanPhone, agentExt, options.callId).catch(() => {});
     }
 
     // Immediately notify agent workspace of dialing
@@ -323,35 +313,6 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
       timestamp: new Date(),
     });
 
-    // Progression timers to ensure agent workspace pops up call without getting stuck in QUEUED
-    const timers: NodeJS.Timeout[] = [];
-
-    const ringTimer = setTimeout(() => {
-      const act = this.activeChannelsMap.get(options.callId);
-      if (act && act.state === 'DIALING') {
-        act.state = 'RINGING';
-        this.emit('call:ringing', { callId: options.callId, channel, timestamp: new Date() });
-      }
-    }, 1200);
-    timers.push(ringTimer);
-
-    const answerTimer = setTimeout(() => {
-      const act = this.activeChannelsMap.get(options.callId);
-      if (act && (act.state === 'DIALING' || act.state === 'RINGING')) {
-        act.state = 'ANSWERED';
-        act.answeredAt = new Date();
-        this.emit('call:answered', {
-          callId: options.callId,
-          channel,
-          agentExtension: agentExt,
-          answeredAt: new Date(),
-        });
-      }
-    }, 3000);
-    timers.push(answerTimer);
-
-    this.callTimers.set(options.callId, timers);
-
     return {
       success: true,
       callId: options.callId,
@@ -359,38 +320,9 @@ export class ImpactPbxProvider extends EventEmitter implements ITelephonyProvide
     };
   }
 
-  private async originateViaHttp(phoneNumber: string, agentExtension: string, callId: string): Promise<void> {
-    try {
-      if (this.config.apiUrl) {
-        await fetch(this.config.apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            src: agentExtension,
-            dest: phoneNumber,
-            auto_answer: 'true',
-            caller_id_number: 'TalkingWave',
-            call_id: callId,
-          }),
-        });
-      }
-    } catch (err) {
-      // Non-blocking
-    }
-  }
-
   async hangup(callId: string): Promise<boolean> {
     const act = this.activeChannelsMap.get(callId);
     if (!act) return false;
-
-    // Clear any pending ring/answer timers for this call
-    const timers = this.callTimers.get(callId);
-    if (timers) {
-      timers.forEach((t) => clearTimeout(t));
-      this.callTimers.delete(callId);
-    }
 
     if (this.loggedIn && this.socket) {
       this.sendAction({
