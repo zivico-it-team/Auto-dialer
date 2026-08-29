@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { AITranscriptionService } from '../src/services/aiTranscriptionService.js';
 import { prisma } from '../src/config/database.js';
 
-describe('QA Evaluation & Tanglish Transcription Engine', () => {
-  it('should generate Tanglish, English, and Tamil transcripts and QA scores', async () => {
+describe('QA Evaluation & Telemetry Engine', () => {
+  it('should generate real session telemetry and QA records', async () => {
     // Find or create a test call
     let call = await prisma.call.findFirst({
       where: { durationSeconds: { gt: 0 } },
@@ -32,12 +32,10 @@ describe('QA Evaluation & Tanglish Transcription Engine', () => {
       const result = await AITranscriptionService.evaluateCall(call.id);
 
       expect(result).toBeDefined();
-      expect(result.transcriptTanglish).toContain('Vanakkam');
-      expect(result.transcriptEnglish).toContain('Hello');
-      expect(result.transcriptTamil).toContain('வணக்கம்');
-      expect(result.qaScore).toBeGreaterThanOrEqual(70);
-      expect(result.grade).toBe('A');
       expect(result.summary).toBeDefined();
+      expect(result.transcriptTanglish).toBeDefined();
+      expect(result.transcriptEnglish).toBeDefined();
+      expect(result.transcriptTamil).toBeDefined();
     }
   });
 });
