@@ -65,7 +65,7 @@ model Campaign {
   retryDelaySeconds  Int      @default(3600) // 1 hour default
   callingStartTime   String   @default("09:00") // HH:mm format
   callingEndTime     String   @default("18:00") // HH:mm format
-  timezone           String   @default("UTC")
+  timezone           String   @default("Asia/Colombo")
   recordCalls        Boolean  @default(true)
   
   // Dedicated Agent Assignment

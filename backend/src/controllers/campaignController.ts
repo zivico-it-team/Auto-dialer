@@ -12,8 +12,8 @@ export const createCampaignSchema = z.object({
   retryLimit: z.number().int().min(1).max(10).default(3),
   retryDelaySeconds: z.number().int().min(60).default(3600),
   callingStartTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Format must be HH:mm').default('09:00'),
-  callingEndTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Format must be HH:mm').default('18:00'),
-  timezone: z.string().default('UTC'),
+  callingEndTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Invalid time format (HH:mm)').default('18:00'),
+  timezone: z.string().default('Asia/Colombo'),
   recordCalls: z.boolean().default(true),
 });
 

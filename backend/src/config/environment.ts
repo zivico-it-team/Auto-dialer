@@ -41,5 +41,10 @@ export const config = {
   globalMaxConcurrentCalls: parseInt(process.env.GLOBAL_MAX_CONCURRENT_CALLS || '10', 10),
   defaultCallingStartTime: process.env.DEFAULT_CALLING_START_TIME || '09:00',
   defaultCallingEndTime: process.env.DEFAULT_CALLING_END_TIME || '18:00',
-  defaultTimezone: process.env.DEFAULT_TIMEZONE || 'UTC',
+  defaultTimezone: process.env.DEFAULT_TIMEZONE || 'Asia/Colombo',
 };
+
+// Ensure Node.js runtime timezone is locked to Sri Lanka Time (UTC+05:30)
+if (!process.env.TZ) {
+  process.env.TZ = 'Asia/Colombo';
+}

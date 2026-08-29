@@ -7,10 +7,15 @@ export class SafetyGuard {
   /**
    * Checks if current time is within campaign's calling hours in its configured timezone
    */
-  static isWithinCallingHours(campaign: Campaign): boolean {
+  static isWithinCallingHours(campaign: {
+    id?: string;
+    callingStartTime: string;
+    callingEndTime: string;
+    timezone?: string;
+  }): boolean {
     try {
       const now = new Date();
-      const timeZone = campaign.timezone || 'UTC';
+      const timeZone = campaign.timezone || 'Asia/Colombo';
       
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone,
