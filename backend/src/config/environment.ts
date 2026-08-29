@@ -18,18 +18,18 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   
   // Telephony
-  telephonyProvider: process.env.TELEPHONY_PROVIDER || 'mock', // 'mock' or 'asterisk'
+  telephonyProvider: process.env.TELEPHONY_PROVIDER || 'impactpbx',
   asterisk: {
-    host: process.env.ASTERISK_HOST || '127.0.0.1',
+    host: process.env.ASTERISK_HOST || 'talkingwave.impactpbx.com',
     port: parseInt(process.env.ASTERISK_PORT || '5038', 10),
     username: process.env.ASTERISK_USERNAME || 'admin',
-    password: process.env.ASTERISK_PASSWORD || 'asterisk',
+    password: process.env.ASTERISK_PASSWORD || 'Aakkeel@1021',
     context: process.env.ASTERISK_CALL_CONTEXT || 'from-internal',
-    outboundTrunk: process.env.ASTERISK_OUTBOUND_TRUNK || 'SIP/trunk_provider',
-    outboundPrefix: process.env.ASTERISK_OUTBOUND_PREFIX || process.env.OUTBOUND_PREFIX || '',
+    outboundTrunk: process.env.ASTERISK_OUTBOUND_TRUNK || 'loopback',
+    outboundPrefix: process.env.ASTERISK_OUTBOUND_PREFIX || process.env.OUTBOUND_PREFIX || '+',
   },
   sip: {
-    domain: process.env.SIP_DOMAIN || '127.0.0.1',
+    domain: process.env.SIP_DOMAIN || 'talkingwave.impactpbx.com',
     port: parseInt(process.env.SIP_PORT || '5060', 10),
   },
   
