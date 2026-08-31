@@ -1,4 +1,30 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+
+function createDatabaseAdapter() {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is required to start the database client.');
+  }
+
+  const url = new URL(connectionString);
+  const database = url.pathname.replace(/^\//, '');
+
+  if (!database) {
+    throw new Error('DATABASE_URL must include a database name.');
+  }
+
+  return new PrismaMariaDb({
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database,
+    connectionLimit: 5,
+    connectTimeout: 5_000,
+  });
+}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -8,6 +34,7 @@ declare global {
 export const prisma =
   global.prisma ||
   new PrismaClient({
+    adapter: createDatabaseAdapter(),
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
 
